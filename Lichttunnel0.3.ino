@@ -3,10 +3,17 @@
 #include <ESPAsyncWebServer.h>
 #include <HTTPClient.h>
 
+#include <Preferences.h>
+
+Preferences preferences;
+
 // Hier die Netzwerkkonfiguration vornehmen
 const char *ssid = "Illustratio-Lichttunnel";
 const char *password = "illustratio";
 
+const char *APP_NAME = "Ltunnel";
+
+//hier die Lightstrips konfigurieren
 #define NUM_STRIPS 5
 #define NUM_LEDS_PER_STRIP 5
 #define NUM_LEDS NUM_LEDS_PER_STRIP * NUM_STRIPS
@@ -15,11 +22,30 @@ const float FADE_VAR = 0.2;
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
 //hier wert von 1-4 angeben.
-#define ESP_POSITION 2
+#define ESP_POSITION 1
 
+//hält die standardlänge des delays. Eventuell anpassen
 int standardDelayPerLight = 200;
 
 String ipBase = "http://192.168.4.";
+
+//Standard IP Konfiguration vom Master
+//Local IP: 192.168.4.XXX
+//Subnet Mask: 255.255.255.0
+//Gateway IP: 192.168.4.1
+//DNS 1: 192.168.4.1
+//DNS 2: 0.0.0.0
+
+
+//für die statische IP der Sub-Geräte
+//staticIP wird basierend auf ESP-Pos berechnet (2,3,4)
+IPAddress staticIP(192, 168, 4, ESP_POSITION );
+//gateway in einem vom ESP gehosteten netzwerk
+IPAddress gateway(192, 168, 4, 1 );
+//subnet ist immer dieses
+IPAddress subnet(255, 255, 255, 0);
+//dns = Server-IP
+IPAddress dns(192, 168, 4, 1);
 
 //Change these to alter where the sensors are connected
 #define forwardSensor 32
@@ -175,7 +201,7 @@ void handleNetworkForward() {
     return;
   }
   else {
-    
+
     handleColorChange(ipBase + String(ESP_POSITION + 1));
     String url2 = ipBase + String(ESP_POSITION + 1) + "/changeSpeed?speed=" + delayPerLight;
     callWebsite(url2);
@@ -193,8 +219,8 @@ void handleAccelForward() {
     return;
   }
   else {
-    
-    String url = ipBase + String(ESP_POSITION + 1) + "/changeAccelMode?accelmode="+String(accelMode);
+
+    String url = ipBase + String(ESP_POSITION + 1) + "/changeAccelMode?accelmode=" + String(accelMode);
     Serial.println("Calling website:" + url);
     callWebsite(url);
   }
@@ -232,32 +258,32 @@ void handleNextReactionTime() {
       nextReactionTime = millis() + delayPerLight;
       break;
     case 1:
-      delayPerLight = delayPerLight-(delayPerLight/10);
+      delayPerLight = delayPerLight - (delayPerLight / 10);
       Serial.println("Accelmode with case 1-new delay is: " + String(delayPerLight));
 
       nextReactionTime = millis() + delayPerLight;
       break;
     case 2:
-      delayPerLight = delayPerLight+(delayPerLight/10);
+      delayPerLight = delayPerLight + (delayPerLight / 10);
       Serial.println("Accelmode with case 1-new delay is: " + String(delayPerLight));
 
       nextReactionTime = millis() + delayPerLight;
       break;
     case 3:
-      delayPerLight = delayPerLight-(delayPerLight/2);
+      delayPerLight = delayPerLight - (delayPerLight / 2);
       Serial.println("Accelmode with case 1-new delay is: " + String(delayPerLight));
 
       nextReactionTime = millis() + delayPerLight;
       break;
     case 4:
-            delayPerLight = delayPerLight*2;
+      delayPerLight = delayPerLight * 2;
       Serial.println("Accelmode with case 1-new delay is: " + String(delayPerLight));
 
       nextReactionTime = millis() + delayPerLight;
       break;
 
-         case 5:
-            delayPerLight = delayPerLight/2;
+    case 5:
+      delayPerLight = delayPerLight / 2;
       Serial.println("Accelmode with case 1-new delay is: " + String(delayPerLight));
 
       nextReactionTime = millis() + delayPerLight;
@@ -283,6 +309,10 @@ void setup() {
   }
   else {
     WiFi.mode(WIFI_STA);
+    //konfiguriere die Slaves auf feste IP-Addressen
+    if (WiFi.config(staticIP, gateway, subnet, dns, dns) == false) {
+      Serial.println("Configuration failed.");
+    }
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
       delay(500);
@@ -293,8 +323,10 @@ void setup() {
     Serial.println(WiFi.localIP());
   }
 
+  preferences.begin(APP_NAME, false);
 
 
+  printNetworkData();
 
   //wenn die index page (domainname/) besucht wird, gib folgendes zurück (siehe Webpages)
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -337,7 +369,7 @@ void setup() {
 
   pinMode(forwardSensor, INPUT_PULLUP);
   pinMode(backwardSensor, INPUT_PULLUP);
-
+  retrieveArrayData();
   Serial.println("System Start");
 }
 
@@ -444,4 +476,71 @@ void loop() {
       }
     }
   }
+}
+//speichert die arraydaten im persistenten speicher
+void saveArrayData() {
+  //nur der master muss diese daten persistent speichern
+  if (ESP_POSITION == 1) {
+    for (int i = 0; i < 5; i++) { // Outer loop for the first dimension
+      for (int j = 0; j < 3; j++) { // Inner loop for the second dimension
+        // Create a key name that includes both the i and j indices
+        String key = "arrayItem" + String(i) + "_" + String(j);
+
+        // Save the item at myArray[i][j] under the generated key
+        preferences.putInt(key.c_str(), lightValues[i][j]);
+
+      }
+    }
+    Serial.println("lightValues Array gespeichert");
+  }
+}
+
+
+void retrieveArrayData() {
+  //nur der master muss die daten erhalten
+  if (ESP_POSITION == 1) {
+    // Retrieve the array from preferences
+    for (int i = 0; i < 5; i++) { // Outer loop
+      for (int j = 0; j < 3; j++) { // Inner loop
+        // Reconstruct the key
+        String key = "arrayItem" + String(i) + "_" + String(j);
+
+        // Get the item from preferences, defaulting to 100 if not found
+        lightValues[i][j] = preferences.getInt(key.c_str(), 100);
+
+      }
+    }
+    Serial.println("LightValues Array daten aus speicher geladen");
+    printArrayState(); 
+  }
+}
+
+void printArrayState() {
+  for (int i = 0; i < 5; i++) {
+    Serial.print("Arrayposition: ");
+    Serial.print(i);
+    Serial.print("-r: ");
+    Serial.print(lightValues[i][0]);
+    Serial.print("-g: ");
+    Serial.print(lightValues[i][1]);
+    Serial.print("-b: ");
+    Serial.println(lightValues[i][2]);
+
+  }
+}
+
+//gibt Netzwerkdaten aus
+void printNetworkData() {
+  Serial.print("ESP-Position: ");
+  Serial.println(ESP_POSITION);
+  Serial.print("Local IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("Subnet Mask: ");
+  Serial.println(WiFi.subnetMask());
+  Serial.print("Gateway IP: ");
+  Serial.println(WiFi.gatewayIP());
+  Serial.print("DNS 1: ");
+  Serial.println(WiFi.dnsIP(0));
+  Serial.print("DNS 2: ");
+  Serial.println(WiFi.dnsIP(1));
 }

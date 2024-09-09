@@ -70,7 +70,7 @@ void DOchangecolor(AsyncWebServerRequest *request) {
 
     changeColorinArray(intLightNum, intRVal, intGVal, intBVal);
     
-
+    saveArrayData(); 
     request->redirect("/");
   }
   else {
