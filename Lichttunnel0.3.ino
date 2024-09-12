@@ -73,6 +73,9 @@ int delayPerLight = 200;
 //accelmode wird benutzt um verschiedene Animationen zu machen
 int accelMode = 0;
 
+//fillmode sorgt dafür das verschiedene füllmuster benutzt werden können
+int fillMode = 0;
+
 const int maxLightDelay = 2000;
 const int minLightDelay = 200;
 
@@ -85,6 +88,37 @@ long nextReactionTime;
 //erstelle Server Objekt
 AsyncWebServer server(80);
 IPAddress ip;
+
+
+void printArrayState() {
+  for (int i = 0; i < 5; i++) {
+    Serial.print("Arrayposition: ");
+    Serial.print(i);
+    Serial.print("-r: ");
+    Serial.print(lightValues[i][0]);
+    Serial.print("-g: ");
+    Serial.print(lightValues[i][1]);
+    Serial.print("-b: ");
+    Serial.println(lightValues[i][2]);
+
+  }
+}
+
+//gibt Netzwerkdaten aus
+void printNetworkData() {
+  Serial.print("ESP-Position: ");
+  Serial.println(ESP_POSITION);
+  Serial.print("Local IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("Subnet Mask: ");
+  Serial.println(WiFi.subnetMask());
+  Serial.print("Gateway IP: ");
+  Serial.println(WiFi.gatewayIP());
+  Serial.print("DNS 1: ");
+  Serial.println(WiFi.dnsIP(0));
+  Serial.print("DNS 2: ");
+  Serial.println(WiFi.dnsIP(1));
+}
 
 void callWebsite(String url) {
 
@@ -127,12 +161,14 @@ void turnLightStripOn(int stripNumber, int intensity) {
     }
     FastLED.show(); // Consider moving this outside of the loop if updating every LED individually isn't required
   }
-
-
+}
+void turnLightStripSolid(int stripNumber, float intensity) {
+  fill_solid( leds + (stripNumber * NUM_LEDS_PER_STRIP), NUM_LEDS_PER_STRIP, CRGB(int(lightValues[stripNumber][0] * intensity) , int(lightValues[stripNumber][1] * intensity), int(lightValues[stripNumber][2] * intensity)));
+  FastLED.show();
 }
 
-
 //funktion die lichter auf einen im array lightValues angegebenen farbwert stellt
+//füllt von beiden seiten
 void turnLightStripPredefined(int stripNumber, float intensity  ) {
   Serial.print("Turning Number: ");
   Serial.print(stripNumber);
@@ -151,6 +187,46 @@ void turnLightStripPredefined(int stripNumber, float intensity  ) {
       leds[end] = CRGB(int(lightValues[stripNumber][0] * intensity) , int(lightValues[stripNumber][1] * intensity), int(lightValues[stripNumber][2] * intensity));
     }
     FastLED.show(); // Consider moving this outside of the loop if updating every LED individually isn't required
+  }
+}
+
+void turnLightStripFromFront(int stripNumber, float intensity  ) {
+  for (int i = stripNumber * NUM_LEDS_PER_STRIP; i < (stripNumber * NUM_LEDS_PER_STRIP) + NUM_LEDS_PER_STRIP; i++) {
+    CRGB(int(lightValues[stripNumber][0] * intensity) , int(lightValues[stripNumber][1] * intensity), int(lightValues[stripNumber][2] * intensity));
+    FastLED.show();
+  }
+}
+
+//for (int i = stripNumber * NUM_LEDS_PER_STRIP; i < (stripNumber * NUM_LEDS_PER_STRIP) + NUM_LEDS_PER_STRIP; i++) {
+
+void turnLightStripFromBack(int stripNumber, float intensity  ) {
+  for (int i = (stripNumber * NUM_LEDS_PER_STRIP) + NUM_LEDS_PER_STRIP; i > stripNumber * NUM_LEDS_PER_STRIP; i--) {
+    CRGB(int(lightValues[stripNumber][0] * intensity) , int(lightValues[stripNumber][1] * intensity), int(lightValues[stripNumber][2] * intensity));
+    FastLED.show();
+  }
+}
+
+
+void handleLightChange(int stripNumber, int intensity ) {
+
+
+  switch (fillMode) {
+    case 0:
+      turnLightStripSolid(stripNumber, intensity);
+      break;
+    case 1:
+      turnLightStripPredefined(stripNumber, intensity);
+      break;
+    case 2:
+   turnLightStripFromFront(stripNumber, intensity); 
+      break;
+    case 3:
+    turnLightStripFromBack(stripNumber, intensity);
+      break;
+    default:
+      // Tue etwas, im Defaultfall
+      // Dieser Fall ist optional
+      break; // Wird nicht benötigt, wenn Statement(s) vorhanden sind
   }
 }
 
@@ -176,9 +252,9 @@ void changeColorinArray(int arrayposition, int R, int G, int B) {
   }
 
   if (ESP_POSITION == 1) {
-    turnLightStripPredefined(arrayposition, 1);
+    turnLightStripSolid(arrayposition, 1);
     delay(200);
-    turnLightStripPredefined(arrayposition, 0);
+    turnLightStripSolid(arrayposition, 0);
   }
 
 }
@@ -221,6 +297,21 @@ void handleAccelForward() {
   else {
 
     String url = ipBase + String(ESP_POSITION + 1) + "/changeAccelMode?accelmode=" + String(accelMode);
+    Serial.println("Calling website:" + url);
+    callWebsite(url);
+  }
+}
+
+void handleFillForward() {
+
+  //nicht den nächsten strip anrufen wenn letzter strip
+  if (ESP_POSITION == 4) {
+    Serial.println("last device, stopping");
+    return;
+  }
+  else {
+
+    String url = ipBase + String(ESP_POSITION + 1) + "/changeFillMode?fillmode=" + String(fillMode);
     Serial.println("Calling website:" + url);
     callWebsite(url);
   }
@@ -338,6 +429,7 @@ void setup() {
   server.on("/changeColor", HTTP_GET, DOchangecolor);
   server.on("/changeSpeed", HTTP_GET, DOchangespeed);
   server.on("/changeAccelMode", HTTP_GET, DOchangeaccelmode);
+    server.on("/changeFillMode", HTTP_GET, DOchangefillmode);
   server.on("/api/color", HTTP_GET, DOgetcolor);
 
 
@@ -364,8 +456,8 @@ void setup() {
   FastLED.addLeds<NEOPIXEL, 25>(leds, 0, NUM_LEDS_PER_STRIP);
   FastLED.addLeds<NEOPIXEL, 26>(leds, NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
   FastLED.addLeds<NEOPIXEL, 27>(leds, 2 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<NEOPIXEL, 15>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<NEOPIXEL, 14>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<NEOPIXEL, 5>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<NEOPIXEL, 17>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
 
   pinMode(forwardSensor, INPUT_PULLUP);
   pinMode(backwardSensor, INPUT_PULLUP);
@@ -387,7 +479,7 @@ void loop() {
     //nextReactionTime = millis() + delayPerLight;
     handleNextReactionTime();
     //digitalWrite(lightPins[activeLight], HIGH);
-    turnLightStripPredefined(activeLight,  1);
+    turnLightStripSolid(activeLight,  1);
 
     Serial.println("Forward Start ");
   }
@@ -400,7 +492,7 @@ void loop() {
     //nextReactionTime = millis() + delayPerLight;
     handleNextReactionTime();
     //digitalWrite(lightPins[activeLight], HIGH);
-    turnLightStripPredefined(activeLight,  1);
+    turnLightStripSolid(activeLight,  1);
 
     Serial.println("Backward Start ");
   }
@@ -410,13 +502,13 @@ void loop() {
       //WIRD AM ENDE AUFGERUFEN
       if (activeLight == lightCount - 1) {
 
-        turnLightStripPredefined(activeLight - 1,  0);
+        turnLightStripSolid(activeLight - 1,  0);
 
-        turnLightStripPredefined(activeLight,   FADE_VAR);
+        turnLightStripSolid(activeLight,   FADE_VAR);
         //hier nächsten oder vorigen Strip aufrufen
         handleNetworkForward();
         delay(delayPerLight);
-        turnLightStripPredefined(activeLight,  0);
+        turnLightStripSolid(activeLight,  0);
         isForward = false;
 
         Serial.println("forward ended");
@@ -425,16 +517,16 @@ void loop() {
       else {
         // digitalWrite(lightPins[activeLight], LOW);
         if (activeLight >= 1) {
-          turnLightStripPredefined(activeLight - 1,  0);
+          turnLightStripSolid(activeLight - 1,  0);
         }
 
-        turnLightStripPredefined(activeLight,   FADE_VAR);
+        turnLightStripSolid(activeLight,   FADE_VAR);
         //  turnLightStripOn(activeLight, 0);
 
         activeLight++;
         //digitalWrite(lightPins[activeLight], HIGH);
 
-        turnLightStripPredefined(activeLight,  1);
+        turnLightStripSolid(activeLight,  1);
 
         //nextReactionTime = millis() + delayPerLight;
         handleNextReactionTime();
@@ -451,25 +543,25 @@ void loop() {
 
         //  digitalWrite(lightPins[activeLight], LOW);
         // turnLightStripOn(activeLight, 0);
-        turnLightStripPredefined(activeLight + 1,  0);
+        turnLightStripSolid(activeLight + 1,  0);
 
-        turnLightStripPredefined(activeLight,   FADE_VAR);
+        turnLightStripSolid(activeLight,   FADE_VAR);
         //hier call an nächsten/vorigen Strip
         handleNetworkBackward();
         delay(delayPerLight);
 
-        turnLightStripPredefined(activeLight,  0);
+        turnLightStripSolid(activeLight,  0);
         isBackward = false;
         Serial.println("backward ended");
       }
       //Normales Aufrufen, iteriert durch
       else {
-        turnLightStripPredefined(activeLight + 1,  0);
+        turnLightStripSolid(activeLight + 1,  0);
 
-        turnLightStripPredefined(activeLight,   FADE_VAR);
+        turnLightStripSolid(activeLight,   FADE_VAR);
         activeLight--;
         //digitalWrite(lightPins[activeLight], HIGH);
-        turnLightStripPredefined(activeLight,  1);
+        turnLightStripSolid(activeLight,  1);
 
         //nextReactionTime = millis() + delayPerLight;
         handleNextReactionTime();
@@ -511,36 +603,6 @@ void retrieveArrayData() {
       }
     }
     Serial.println("LightValues Array daten aus speicher geladen");
-    printArrayState(); 
+    printArrayState();
   }
-}
-
-void printArrayState() {
-  for (int i = 0; i < 5; i++) {
-    Serial.print("Arrayposition: ");
-    Serial.print(i);
-    Serial.print("-r: ");
-    Serial.print(lightValues[i][0]);
-    Serial.print("-g: ");
-    Serial.print(lightValues[i][1]);
-    Serial.print("-b: ");
-    Serial.println(lightValues[i][2]);
-
-  }
-}
-
-//gibt Netzwerkdaten aus
-void printNetworkData() {
-  Serial.print("ESP-Position: ");
-  Serial.println(ESP_POSITION);
-  Serial.print("Local IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.print("Subnet Mask: ");
-  Serial.println(WiFi.subnetMask());
-  Serial.print("Gateway IP: ");
-  Serial.println(WiFi.gatewayIP());
-  Serial.print("DNS 1: ");
-  Serial.println(WiFi.dnsIP(0));
-  Serial.print("DNS 2: ");
-  Serial.println(WiFi.dnsIP(1));
 }

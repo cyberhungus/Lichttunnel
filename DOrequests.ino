@@ -112,6 +112,22 @@ void DOchangeaccelmode(AsyncWebServerRequest *request) {
   }
 }
 
+
+void DOchangefillmode(AsyncWebServerRequest *request) {
+  if (request->hasParam("fillmode")) {
+    String fMode = request->getParam("fillmode")->value();
+    fillMode = fMode.toInt();
+    handleFillForward(); 
+    Serial.print("Changed FillMode via Website to: ");
+    Serial.println(fillMode);
+    request->redirect("/");
+
+  }
+  else {
+    request->redirect("/error");
+  }
+}
+
 void DOgetcolor(AsyncWebServerRequest *request) {
   if (request->hasParam("lightNum")) {
     String lightNumber = request->getParam("lightNum")->value();
