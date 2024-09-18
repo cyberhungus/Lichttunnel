@@ -15,14 +15,16 @@ const char *APP_NAME = "Ltunnel";
 
 //hier die Lightstrips konfigurieren
 #define NUM_STRIPS 5
-#define NUM_LEDS_PER_STRIP 5
+#define NUM_LEDS_PER_STRIP 50
 #define NUM_LEDS NUM_LEDS_PER_STRIP * NUM_STRIPS
 const float FADE_VAR = 0.2;
+//hier wert von 1-4 angeben.
+#define ESP_POSITION 3
+const boolean isSolo = false;
 
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
-//hier wert von 1-4 angeben.
-#define ESP_POSITION 1
+
 
 //hält die standardlänge des delays. Eventuell anpassen
 int standardDelayPerLight = 200;
@@ -39,7 +41,7 @@ String ipBase = "http://192.168.4.";
 
 //für die statische IP der Sub-Geräte
 //staticIP wird basierend auf ESP-Pos berechnet (2,3,4)
-IPAddress staticIP(192, 168, 4, ESP_POSITION );
+IPAddress staticIP(192, 168, 4, ((ESP_POSITION - 1) * 10) + 1 );
 //gateway in einem vom ESP gehosteten netzwerk
 IPAddress gateway(192, 168, 4, 1 );
 //subnet ist immer dieses
@@ -48,8 +50,8 @@ IPAddress subnet(255, 255, 255, 0);
 IPAddress dns(192, 168, 4, 1);
 
 //Change these to alter where the sensors are connected
-#define forwardSensor 32
-#define backwardSensor 33
+#define forwardSensor 17
+#define backwardSensor 14
 
 int lightValues[5][3] = {
   {100, 200, 100},  // First entry with 3 numbers
@@ -108,6 +110,10 @@ void printArrayState() {
 void printNetworkData() {
   Serial.print("ESP-Position: ");
   Serial.println(ESP_POSITION);
+  Serial.print("Is Solo: ");
+  Serial.println(isSolo);
+  Serial.print("NET SSID: ");
+  Serial.println(ssid);
   Serial.print("Local IP: ");
   Serial.println(WiFi.localIP());
   Serial.print("Subnet Mask: ");
@@ -167,6 +173,12 @@ void turnLightStripSolid(int stripNumber, float intensity) {
   FastLED.show();
 }
 
+void turnLightStripRGB(int stripNumber, int r, int g, int b ) {
+
+  fill_solid( leds + (stripNumber * NUM_LEDS_PER_STRIP), NUM_LEDS_PER_STRIP, CRGB(r, g, b));
+  FastLED.show();
+}
+
 //funktion die lichter auf einen im array lightValues angegebenen farbwert stellt
 //füllt von beiden seiten
 void turnLightStripPredefined(int stripNumber, float intensity  ) {
@@ -218,10 +230,10 @@ void handleLightChange(int stripNumber, int intensity ) {
       turnLightStripPredefined(stripNumber, intensity);
       break;
     case 2:
-   turnLightStripFromFront(stripNumber, intensity); 
+      turnLightStripFromFront(stripNumber, intensity);
       break;
     case 3:
-    turnLightStripFromBack(stripNumber, intensity);
+      turnLightStripFromBack(stripNumber, intensity);
       break;
     default:
       // Tue etwas, im Defaultfall
@@ -270,69 +282,73 @@ void handleColorChange(String ip) {
 
 
 void handleNetworkForward() {
+  if (isSolo == false) {
+    //nicht den nächsten strip anrufen wenn letzter strip
+    if (ESP_POSITION == 3) {
+      Serial.println("last device, stopping");
+      return;
+    }
+    else {
 
-  //nicht den nächsten strip anrufen wenn letzter strip
-  if (ESP_POSITION == 4) {
-    Serial.println("last device, stopping");
-    return;
-  }
-  else {
-
-    handleColorChange(ipBase + String(ESP_POSITION + 1));
-    String url2 = ipBase + String(ESP_POSITION + 1) + "/changeSpeed?speed=" + delayPerLight;
-    callWebsite(url2);
-    String url = ipBase + String(ESP_POSITION + 1) + "/forward";
-    Serial.println("Calling website:" + url);
-    callWebsite(url);
+      handleColorChange(ipBase + String((ESP_POSITION * 10) + 1));
+      String url2 = ipBase + String((ESP_POSITION * 10) + 1) + "/changeSpeed?speed=" + delayPerLight;
+      callWebsite(url2);
+      String url = ipBase + String((ESP_POSITION * 10) + 1) + "/forward";
+      Serial.println("Calling website:" + url);
+      callWebsite(url);
+    }
   }
 }
 
 void handleAccelForward() {
-
-  //nicht den nächsten strip anrufen wenn letzter strip
-  if (ESP_POSITION == 4) {
-    Serial.println("last device, stopping");
-    return;
-  }
-  else {
-
-    String url = ipBase + String(ESP_POSITION + 1) + "/changeAccelMode?accelmode=" + String(accelMode);
-    Serial.println("Calling website:" + url);
-    callWebsite(url);
+  if (isSolo == false) {
+    //nicht den nächsten strip anrufen wenn letzter strip
+    if (ESP_POSITION == 3) {
+      Serial.println("last device, stopping");
+      return;
+    }
+    else {
+      //((ESP_POSITION-1)*10)+1
+      String url = ipBase + String((ESP_POSITION * 10) + 1) + "/changeAccelMode?accelmode=" + String(accelMode);
+      Serial.println("Calling website:" + url);
+      callWebsite(url);
+    }
   }
 }
 
 void handleFillForward() {
+  if (isSolo == false) {
+    //nicht den nächsten strip anrufen wenn letzter strip
+    if (ESP_POSITION == 3) {
+      Serial.println("last device, stopping");
+      return;
+    }
+    else {
 
-  //nicht den nächsten strip anrufen wenn letzter strip
-  if (ESP_POSITION == 4) {
-    Serial.println("last device, stopping");
-    return;
-  }
-  else {
-
-    String url = ipBase + String(ESP_POSITION + 1) + "/changeFillMode?fillmode=" + String(fillMode);
-    Serial.println("Calling website:" + url);
-    callWebsite(url);
+      String url = ipBase + String((ESP_POSITION * 10) + 1) + "/changeFillMode?fillmode=" + String(fillMode);
+      Serial.println("Calling website:" + url);
+      callWebsite(url);
+    }
   }
 }
 
 
 
 void handleNetworkBackward() {
-
-  //nicht den nächsten strip anrufen wenn letzter strip
-  if (ESP_POSITION == 1) {
-    Serial.println("first device, stopping");
-    return;
-  }
-  else {
-    handleColorChange(ipBase + String(ESP_POSITION - 1));
-    String url2 = ipBase + String(ESP_POSITION - 1) + "/changeSpeed?speed=" + delayPerLight;
-    callWebsite(url2);
-    String url = ipBase + String(ESP_POSITION - 1) + "/backward";
-    Serial.println("Calling website:" + url);
-    callWebsite(url);
+  if (isSolo == false) {
+    //nicht den nächsten strip anrufen wenn letzter strip
+    if (ESP_POSITION == 1) {
+      Serial.println("first device, stopping");
+      return;
+    }
+    else {
+      handleColorChange(ipBase + String((((ESP_POSITION - 1) * 10) + 1) - 10));
+      String url2 = ipBase + String((((ESP_POSITION - 1) * 10) + 1) - 10) + "/changeSpeed?speed=" + delayPerLight;
+      callWebsite(url2);
+      String url = ipBase + String((((ESP_POSITION - 1) * 10) + 1) - 10) + "/backward";
+      Serial.println("Calling website:" + url);
+      callWebsite(url);
+    }
   }
 }
 
@@ -396,6 +412,7 @@ void setup() {
     //Printet die IP des Servers
     Serial.println("Netzwerk IP addresse: ");
     Serial.println(WiFi.softAPIP());
+    showConfirm();
 
   }
   else {
@@ -406,9 +423,11 @@ void setup() {
     }
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
+      delay(200);
+      showConnectionLost();
       Serial.println("Verbindungsversuch...");
     }
+    showConfirm();
     Serial.println("Netzwerkverbindung hergestellt");
     Serial.print("Local ESP32 IP: ");
     Serial.println(WiFi.localIP());
@@ -429,7 +448,7 @@ void setup() {
   server.on("/changeColor", HTTP_GET, DOchangecolor);
   server.on("/changeSpeed", HTTP_GET, DOchangespeed);
   server.on("/changeAccelMode", HTTP_GET, DOchangeaccelmode);
-    server.on("/changeFillMode", HTTP_GET, DOchangefillmode);
+  server.on("/changeFillMode", HTTP_GET, DOchangefillmode);
   server.on("/api/color", HTTP_GET, DOgetcolor);
 
 
@@ -447,27 +466,52 @@ void setup() {
 
   server.begin();
   //
-  //  FastLED.addLeds<WS2811, 12, RGB>(leds, 0, NUM_LEDS_PER_STRIP);
-  //  FastLED.addLeds<WS2811, 14, RGB>(leds, NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  //  FastLED.addLeds<WS2811, 27, RGB>(leds, 2 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  //  FastLED.addLeds<WS2811, 13, RGB>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  //  FastLED.addLeds<WS2811, 26, RGB>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<WS2811, 18, RGB>(leds, 0, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<WS2811, 19, RGB>(leds, NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<WS2811, 23, RGB>(leds, 2 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<WS2811, 5, RGB>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<WS2811, 12, RGB>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
 
-  FastLED.addLeds<NEOPIXEL, 25>(leds, 0, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<NEOPIXEL, 26>(leds, NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<NEOPIXEL, 27>(leds, 2 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<NEOPIXEL, 5>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<NEOPIXEL, 17>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  //  FastLED.addLeds<NEOPIXEL, 25>(leds, 0, NUM_LEDS_PER_STRIP);
+  //  FastLED.addLeds<NEOPIXEL, 26>(leds, NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  //  FastLED.addLeds<NEOPIXEL, 27>(leds, 2 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  //  FastLED.addLeds<NEOPIXEL, 5>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  //  FastLED.addLeds<NEOPIXEL, 17>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
 
   pinMode(forwardSensor, INPUT_PULLUP);
   pinMode(backwardSensor, INPUT_PULLUP);
   retrieveArrayData();
   Serial.println("System Start");
+  lightTest();
 }
 
 
 
 void loop() {
+
+
+
+
+  //check for wifi connection, if none, attempt reconnect.
+  if (ESP_POSITION != 1) {
+    if (WiFi.status() != WL_CONNECTED) {
+      showConnectionLost();
+      WiFi.mode(WIFI_STA);
+      //konfiguriere die Slaves auf feste IP-Addressen
+      if (WiFi.config(staticIP, gateway, subnet, dns, dns) == false) {
+        Serial.println("Configuration failed.");
+      }
+      WiFi.begin(ssid, password);
+      while (WiFi.status() != WL_CONNECTED) {
+        delay(200);
+        showConnectionLost();
+        Serial.println("Verbindungsversuch...");
+      }
+      Serial.println("Netzwerkverbindung hergestellt");
+      Serial.print("Local ESP32 IP: ");
+      Serial.println(WiFi.localIP());
+    }
+  }
 
 
   //read forward sensor
@@ -479,10 +523,11 @@ void loop() {
     //nextReactionTime = millis() + delayPerLight;
     handleNextReactionTime();
     //digitalWrite(lightPins[activeLight], HIGH);
-    turnLightStripSolid(activeLight,  1);
+    handleLightChange(activeLight,  1);
 
     Serial.println("Forward Start ");
   }
+
 
   result = digitalRead(backwardSensor);
   if (result == LOW && isForward == false && isBackward == false) {
@@ -492,23 +537,28 @@ void loop() {
     //nextReactionTime = millis() + delayPerLight;
     handleNextReactionTime();
     //digitalWrite(lightPins[activeLight], HIGH);
-    turnLightStripSolid(activeLight,  1);
+    handleLightChange(activeLight,  1);
 
     Serial.println("Backward Start ");
   }
+
+
 
   if (millis() > nextReactionTime) {
     if (isForward) {
       //WIRD AM ENDE AUFGERUFEN
       if (activeLight == lightCount - 1) {
 
-        turnLightStripSolid(activeLight - 1,  0);
+        handleLightChange(activeLight - 1,  0);
 
-        turnLightStripSolid(activeLight,   FADE_VAR);
+        handleLightChange(activeLight,   FADE_VAR);
         //hier nächsten oder vorigen Strip aufrufen
-        handleNetworkForward();
+        handleNextReactionTime();
+        if (isSolo == false) {
+          handleNetworkForward();
+        }
         delay(delayPerLight);
-        turnLightStripSolid(activeLight,  0);
+        handleLightChange(activeLight,  0);
         isForward = false;
 
         Serial.println("forward ended");
@@ -517,16 +567,16 @@ void loop() {
       else {
         // digitalWrite(lightPins[activeLight], LOW);
         if (activeLight >= 1) {
-          turnLightStripSolid(activeLight - 1,  0);
+          handleLightChange(activeLight - 1,  0);
         }
 
-        turnLightStripSolid(activeLight,   FADE_VAR);
+        handleLightChange(activeLight,   FADE_VAR);
         //  turnLightStripOn(activeLight, 0);
 
         activeLight++;
         //digitalWrite(lightPins[activeLight], HIGH);
 
-        turnLightStripSolid(activeLight,  1);
+        handleLightChange(activeLight,  1);
 
         //nextReactionTime = millis() + delayPerLight;
         handleNextReactionTime();
@@ -543,25 +593,35 @@ void loop() {
 
         //  digitalWrite(lightPins[activeLight], LOW);
         // turnLightStripOn(activeLight, 0);
-        turnLightStripSolid(activeLight + 1,  0);
 
-        turnLightStripSolid(activeLight,   FADE_VAR);
+        handleLightChange(activeLight + 1,  0);
+
+
+        handleLightChange(activeLight,   FADE_VAR);
         //hier call an nächsten/vorigen Strip
-        handleNetworkBackward();
+        //WARNUNG WIEDER EINJKOMMENTIEREN
+        handleNextReactionTime();
+        if (isSolo == false) {
+          handleNetworkBackward();
+        }
         delay(delayPerLight);
 
-        turnLightStripSolid(activeLight,  0);
+        handleLightChange(activeLight,  0);
         isBackward = false;
         Serial.println("backward ended");
       }
       //Normales Aufrufen, iteriert durch
       else {
-        turnLightStripSolid(activeLight + 1,  0);
-
-        turnLightStripSolid(activeLight,   FADE_VAR);
+        if (activeLight <= 3) {
+          handleLightChange(activeLight + 1,  0);
+        }
+        handleLightChange(activeLight,   FADE_VAR);
         activeLight--;
+        Serial.print("Backward change: ");
+        Serial.print(activeLight);
+        Serial.println(" is on");
         //digitalWrite(lightPins[activeLight], HIGH);
-        turnLightStripSolid(activeLight,  1);
+        handleLightChange(activeLight,  1);
 
         //nextReactionTime = millis() + delayPerLight;
         handleNextReactionTime();
@@ -604,5 +664,45 @@ void retrieveArrayData() {
     }
     Serial.println("LightValues Array daten aus speicher geladen");
     printArrayState();
+  }
+}
+
+
+void showConfirm() {
+  Serial.println("Show Confirm");
+  turnLightStripRGB(2, 0, 255, 0);
+  delay(200);
+  turnLightStripRGB(2, 0, 0, 0);
+  delay(200);
+  turnLightStripRGB(2, 0, 255, 0);
+  delay(200);
+  turnLightStripRGB(2, 0, 0, 0);
+}
+void showConnectionLost() {
+  Serial.println("Show Connection ");
+  for (int i = 0; i < 255; i += 5) {
+    turnLightStripRGB(2, i, i, 0);
+    delay(10);
+  }
+}
+
+void showError() {
+  Serial.println("Show Error");
+  turnLightStripRGB(2, 255, 0, 0);
+  delay(200);
+  turnLightStripRGB(2, 0, 0, 0);
+  delay(200);
+  turnLightStripRGB(2, 255, 0, 0);
+  delay(200);
+  turnLightStripRGB(2, 0, 0, 0);
+}
+
+void lightTest() {
+  Serial.println("testing lights");
+  for (int strip = 0; strip < 5; strip++) {
+    for (int i = 0; i < 100; i += 10) {
+      turnLightStripRGB(strip, i, i, 0);
+      delay(10);
+    }
   }
 }
