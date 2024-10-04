@@ -1,6 +1,6 @@
 void DOforward(AsyncWebServerRequest *request) {
   if ( isForward == false && isBackward == false) {
-       delayPerLight = standardDelayPerLight;
+    delayPerLight = standardDelayPerLight;
     isForward = true;
     activeLight = 0;
     nextReactionTime = millis() + delayPerLight;
@@ -18,7 +18,7 @@ void DOforward(AsyncWebServerRequest *request) {
 void DObackward(AsyncWebServerRequest *request) {
 
   if ( isForward == false && isBackward == false) {
-       delayPerLight = standardDelayPerLight;
+    delayPerLight = standardDelayPerLight;
     isBackward = true;
     activeLight = lightCount - 1;
     nextReactionTime = millis() + delayPerLight;
@@ -37,7 +37,7 @@ void DObackward(AsyncWebServerRequest *request) {
 
 
 void DOchangecolor(AsyncWebServerRequest *request) {
-  Serial.println("Change color Called"); 
+  Serial.println("Change color Called");
   int intLightNum = -1;
   int intRVal = 100;
   int intGVal = 100;
@@ -46,31 +46,31 @@ void DOchangecolor(AsyncWebServerRequest *request) {
   if (request->hasParam("lightnumber")) {
     String lightNumber = request->getParam("lightnumber")->value();
     intLightNum = lightNumber.toInt();
-    Serial.println("Has lightNumber"); 
+    Serial.println("Has lightNumber");
 
 
 
     if (request->hasParam("RVal")) {
       String RVal = request->getParam("RVal")->value();
       intRVal = RVal.toInt();
-          Serial.println("Has red"); 
+      Serial.println("Has red");
     }
     if (request->hasParam("GVal")) {
       String GVal = request->getParam("GVal")->value();
       intGVal = GVal.toInt();
-          Serial.println("Has green"); 
+      Serial.println("Has green");
     }
     if (request->hasParam("BVal")) {
       String BVal = request->getParam("BVal")->value();
       intBVal = BVal.toInt();
-          Serial.println("Has blue"); 
+      Serial.println("Has blue");
 
 
     }
 
     changeColorinArray(intLightNum, intRVal, intGVal, intBVal);
-    
-    saveArrayData(); 
+
+    saveArrayData();
     request->redirect("/");
   }
   else {
@@ -87,7 +87,7 @@ void DOchangespeed(AsyncWebServerRequest *request) {
     Serial.print("Changed Speed via Website to: ");
     Serial.println(delayPerLight);
 
-    
+
     request->redirect("/");
 
   }
@@ -101,7 +101,7 @@ void DOchangeaccelmode(AsyncWebServerRequest *request) {
   if (request->hasParam("accelmode")) {
     String accMode = request->getParam("accelmode")->value();
     accelMode = accMode.toInt();
-    handleAccelForward(); 
+    handleAccelForward();
     Serial.print("Changed AccelMode via Website to: ");
     Serial.println(accelMode);
     request->redirect("/");
@@ -117,7 +117,7 @@ void DOchangefillmode(AsyncWebServerRequest *request) {
   if (request->hasParam("fillmode")) {
     String fMode = request->getParam("fillmode")->value();
     fillMode = fMode.toInt();
-    handleFillForward(); 
+    handleFillForward();
     Serial.print("Changed FillMode via Website to: ");
     Serial.println(fillMode);
     request->redirect("/");
@@ -146,4 +146,18 @@ void DOgetcolor(AsyncWebServerRequest *request) {
   else {
     request->redirect("/error");
   }
+}
+
+void DOEmergency(AsyncWebServerRequest *request) {
+  for (int strip = 0; strip < NUM_STRIPS; strip++) {
+
+    turnLightStripRGB(strip, 255, 255, 255);
+    delay(100);
+  }
+  if (ESP_POSITION != ESP_AMOUNT && isSolo == false) {
+    String url = ipBase + String((((ESP_POSITION - 1) * 10) + 1) - 10) + "/emergency";
+    Serial.println("Calling website:" + url);
+    callWebsite(url);
+  }
+  request->redirect("/");
 }

@@ -8,8 +8,16 @@
 Preferences preferences;
 
 // Hier die Netzwerkkonfiguration vornehmen
-const char *ssid = "Illustratio-Lichttunnel";
-const char *password = "illustratio";
+//const char *ssid = "Illustratio-Lichttunnel";
+//const char *password = "illustratio";
+
+//const char *ssid = "TP-Link_9842";
+//const char *password = "68409043";
+
+
+const char *ssid = "TP-LINK_AP_1710";
+const char *password = "93469128";
+
 
 const char *APP_NAME = "Ltunnel";
 
@@ -17,9 +25,11 @@ const char *APP_NAME = "Ltunnel";
 #define NUM_STRIPS 5
 #define NUM_LEDS_PER_STRIP 50
 #define NUM_LEDS NUM_LEDS_PER_STRIP * NUM_STRIPS
-const float FADE_VAR = 0.2;
+const float FADE_VAR = 0.7;
+const float OFF_VAR = 0.4;
 //hier wert von 1-4 angeben.
-#define ESP_POSITION 3
+#define ESP_POSITION 2
+#define ESP_AMOUNT 2
 const boolean isSolo = false;
 
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
@@ -27,11 +37,11 @@ CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
 
 //hält die standardlänge des delays. Eventuell anpassen
-int standardDelayPerLight = 200;
+int standardDelayPerLight = 700;
 
-String ipBase = "http://192.168.4.";
+String ipBase = "http://192.168.0.";
 
-//Standard IP Konfiguration vom Master
+//Standard IP Konfiguration vom Master (self hosted network)
 //Local IP: 192.168.4.XXX
 //Subnet Mask: 255.255.255.0
 //Gateway IP: 192.168.4.1
@@ -39,15 +49,32 @@ String ipBase = "http://192.168.4.";
 //DNS 2: 0.0.0.0
 
 
+//tplink 9842
+//14:47:57.918 -> Local IP: 192.168.0.101
+//14:47:57.918 -> Subnet Mask: 255.255.255.0
+//14:47:57.918 -> Gateway IP: 192.168.0.1
+//14:47:57.918 -> DNS 1: 192.168.0.1
+//14:47:57.918 -> DNS 2: 0.0.0.0
+
+//TPLINK_AP_1710
+//16:09:19.748 -> Local IP: 192.168.0.101
+//16:09:19.748 -> Subnet Mask: 255.255.255.0
+//16:09:19.748 -> Gateway IP: 192.168.0.254
+//16:09:19.748 -> DNS 1: 192.168.0.254
+//16:09:19.748 -> DNS 2: 0.0.0.0
+//
+
+
+
 //für die statische IP der Sub-Geräte
 //staticIP wird basierend auf ESP-Pos berechnet (2,3,4)
-IPAddress staticIP(192, 168, 4, ((ESP_POSITION - 1) * 10) + 1 );
+IPAddress staticIP(192, 168, 0, ((ESP_POSITION) * 10) + 1 );
 //gateway in einem vom ESP gehosteten netzwerk
-IPAddress gateway(192, 168, 4, 1 );
+IPAddress gateway(192, 168, 0, 254 );
 //subnet ist immer dieses
 IPAddress subnet(255, 255, 255, 0);
 //dns = Server-IP
-IPAddress dns(192, 168, 4, 1);
+IPAddress dns(192, 168, 0, 254);
 
 //Change these to alter where the sensors are connected
 #define forwardSensor 17
@@ -86,6 +113,8 @@ bool isBackward = false;
 
 long lastReactionTime;
 long nextReactionTime;
+
+
 
 //erstelle Server Objekt
 AsyncWebServer server(80);
@@ -284,16 +313,16 @@ void handleColorChange(String ip) {
 void handleNetworkForward() {
   if (isSolo == false) {
     //nicht den nächsten strip anrufen wenn letzter strip
-    if (ESP_POSITION == 3) {
+    if (ESP_POSITION == ESP_AMOUNT) {
       Serial.println("last device, stopping");
       return;
     }
     else {
 
-      handleColorChange(ipBase + String((ESP_POSITION * 10) + 1));
-      String url2 = ipBase + String((ESP_POSITION * 10) + 1) + "/changeSpeed?speed=" + delayPerLight;
+      handleColorChange(ipBase + String(((ESP_POSITION + 1) * 10) + 1));
+      String url2 = ipBase + String(((ESP_POSITION + 1) * 10) + 1) + "/changeSpeed?speed=" + delayPerLight;
       callWebsite(url2);
-      String url = ipBase + String((ESP_POSITION * 10) + 1) + "/forward";
+      String url = ipBase + String(((ESP_POSITION + 1) * 10) + 1) + "/forward";
       Serial.println("Calling website:" + url);
       callWebsite(url);
     }
@@ -303,13 +332,13 @@ void handleNetworkForward() {
 void handleAccelForward() {
   if (isSolo == false) {
     //nicht den nächsten strip anrufen wenn letzter strip
-    if (ESP_POSITION == 3) {
+    if (ESP_POSITION == ESP_AMOUNT) {
       Serial.println("last device, stopping");
       return;
     }
     else {
       //((ESP_POSITION-1)*10)+1
-      String url = ipBase + String((ESP_POSITION * 10) + 1) + "/changeAccelMode?accelmode=" + String(accelMode);
+      String url = ipBase + String(((ESP_POSITION + 1) * 10) + 1) + "/changeAccelMode?accelmode=" + String(accelMode);
       Serial.println("Calling website:" + url);
       callWebsite(url);
     }
@@ -319,13 +348,13 @@ void handleAccelForward() {
 void handleFillForward() {
   if (isSolo == false) {
     //nicht den nächsten strip anrufen wenn letzter strip
-    if (ESP_POSITION == 3) {
+    if (ESP_POSITION == ESP_AMOUNT) {
       Serial.println("last device, stopping");
       return;
     }
     else {
 
-      String url = ipBase + String((ESP_POSITION * 10) + 1) + "/changeFillMode?fillmode=" + String(fillMode);
+      String url = ipBase + String(((ESP_POSITION + 1) * 10) + 1) + "/changeFillMode?fillmode=" + String(fillMode);
       Serial.println("Calling website:" + url);
       callWebsite(url);
     }
@@ -406,17 +435,45 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Starting Device Number: " + String(ESP_POSITION));
 
+  FastLED.addLeds<WS2811, 18, BRG>(leds, 0, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<WS2811, 19, BRG>(leds, NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<WS2811, 23, BRG>(leds, 2 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<WS2811, 5, BRG>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  FastLED.addLeds<WS2811, 12, BRG>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+  lightTest();
+
+  //server started und stellt netzwerk bereit.
+
+  //ToDo: Implement a Self-Hosting Boolean which turns the self hosting on
   if (ESP_POSITION == 1) {
-    Serial.println("Erstelle Netzwerk");
-    WiFi.softAP(ssid, password);
-    //Printet die IP des Servers
-    Serial.println("Netzwerk IP addresse: ");
-    Serial.println(WiFi.softAPIP());
+    //EInkommentieren für Netzwerk Selbst gehosted
+    //    Serial.println("Erstelle Netzwerk");
+    //    WiFi.softAP(ssid, password);
+    //    //Printet die IP des Servers
+    //    Serial.println("Netzwerk IP addresse: ");
+    //    Serial.println(WiFi.softAPIP());
+    //    showConfirm();
+
+
+    //konfiguriere die Slaves auf feste IP-Addressen
+    if (WiFi.config(staticIP, gateway, subnet, dns, dns) == false) {
+      Serial.println("Configuration failed.");
+    }
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(200);
+      showConnectionLost();
+      Serial.println("Verbindungsversuch...");
+    }
     showConfirm();
+    Serial.println("Netzwerkverbindung hergestellt");
+    Serial.print("Local ESP32 IP: ");
+    Serial.println(WiFi.localIP());
 
   }
   else {
-    WiFi.mode(WIFI_STA);
+
+
     //konfiguriere die Slaves auf feste IP-Addressen
     if (WiFi.config(staticIP, gateway, subnet, dns, dns) == false) {
       Serial.println("Configuration failed.");
@@ -432,10 +489,10 @@ void setup() {
     Serial.print("Local ESP32 IP: ");
     Serial.println(WiFi.localIP());
   }
-
+  //start preferences module
   preferences.begin(APP_NAME, false);
 
-
+  //gibt informationen über Netzwerk as
   printNetworkData();
 
   //wenn die index page (domainname/) besucht wird, gib folgendes zurück (siehe Webpages)
@@ -443,6 +500,7 @@ void setup() {
     request->send(200, "text/html", MainPage());
   });
 
+  //server pfas konfigurationen
   server.on("/forward", HTTP_GET, DOforward) ;
   server.on("/backward", HTTP_GET, DObackward);
   server.on("/changeColor", HTTP_GET, DOchangecolor);
@@ -450,7 +508,7 @@ void setup() {
   server.on("/changeAccelMode", HTTP_GET, DOchangeaccelmode);
   server.on("/changeFillMode", HTTP_GET, DOchangefillmode);
   server.on("/api/color", HTTP_GET, DOgetcolor);
-
+  server.on("/emergency", HTTP_GET, DOEmergency);
 
   //show error
   server.on("/error", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -466,11 +524,6 @@ void setup() {
 
   server.begin();
   //
-  FastLED.addLeds<WS2811, 18, RGB>(leds, 0, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<WS2811, 19, RGB>(leds, NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<WS2811, 23, RGB>(leds, 2 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<WS2811, 5, RGB>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-  FastLED.addLeds<WS2811, 12, RGB>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
 
   //  FastLED.addLeds<NEOPIXEL, 25>(leds, 0, NUM_LEDS_PER_STRIP);
   //  FastLED.addLeds<NEOPIXEL, 26>(leds, NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
@@ -482,7 +535,7 @@ void setup() {
   pinMode(backwardSensor, INPUT_PULLUP);
   retrieveArrayData();
   Serial.println("System Start");
-  lightTest();
+
 }
 
 
@@ -493,25 +546,25 @@ void loop() {
 
 
   //check for wifi connection, if none, attempt reconnect.
-  if (ESP_POSITION != 1) {
-    if (WiFi.status() != WL_CONNECTED) {
-      showConnectionLost();
-      WiFi.mode(WIFI_STA);
-      //konfiguriere die Slaves auf feste IP-Addressen
-      if (WiFi.config(staticIP, gateway, subnet, dns, dns) == false) {
-        Serial.println("Configuration failed.");
-      }
-      WiFi.begin(ssid, password);
-      while (WiFi.status() != WL_CONNECTED) {
-        delay(200);
-        showConnectionLost();
-        Serial.println("Verbindungsversuch...");
-      }
-      Serial.println("Netzwerkverbindung hergestellt");
-      Serial.print("Local ESP32 IP: ");
-      Serial.println(WiFi.localIP());
+
+  if (WiFi.status() != WL_CONNECTED) {
+    showConnectionLost();
+    WiFi.mode(WIFI_STA);
+    //konfiguriere die Slaves auf feste IP-Addressen
+    if (WiFi.config(staticIP, gateway, subnet, dns, dns) == false) {
+      Serial.println("Configuration failed.");
     }
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(200);
+      showConnectionLost();
+      Serial.println("Verbindungsversuch...");
+    }
+    Serial.println("Netzwerkverbindung hergestellt");
+    Serial.print("Local ESP32 IP: ");
+    Serial.println(WiFi.localIP());
   }
+
 
 
   //read forward sensor
@@ -549,7 +602,7 @@ void loop() {
       //WIRD AM ENDE AUFGERUFEN
       if (activeLight == lightCount - 1) {
 
-        handleLightChange(activeLight - 1,  0);
+        handleLightChange(activeLight - 1,  OFF_VAR);
 
         handleLightChange(activeLight,   FADE_VAR);
         //hier nächsten oder vorigen Strip aufrufen
@@ -558,16 +611,17 @@ void loop() {
           handleNetworkForward();
         }
         delay(delayPerLight);
-        handleLightChange(activeLight,  0);
+        handleLightChange(activeLight,  OFF_VAR);
         isForward = false;
 
         Serial.println("forward ended");
+
       }
       //normales aufrufen, iteriert durch
       else {
         // digitalWrite(lightPins[activeLight], LOW);
         if (activeLight >= 1) {
-          handleLightChange(activeLight - 1,  0);
+          handleLightChange(activeLight - 1,  OFF_VAR);
         }
 
         handleLightChange(activeLight,   FADE_VAR);
@@ -594,26 +648,26 @@ void loop() {
         //  digitalWrite(lightPins[activeLight], LOW);
         // turnLightStripOn(activeLight, 0);
 
-        handleLightChange(activeLight + 1,  0);
+        handleLightChange(activeLight + 1,  OFF_VAR);
 
 
         handleLightChange(activeLight,   FADE_VAR);
-        //hier call an nächsten/vorigen Strip
-        //WARNUNG WIEDER EINJKOMMENTIEREN
+
         handleNextReactionTime();
         if (isSolo == false) {
           handleNetworkBackward();
         }
         delay(delayPerLight);
 
-        handleLightChange(activeLight,  0);
+        handleLightChange(activeLight,  OFF_VAR);
         isBackward = false;
         Serial.println("backward ended");
+
       }
       //Normales Aufrufen, iteriert durch
       else {
         if (activeLight <= 3) {
-          handleLightChange(activeLight + 1,  0);
+          handleLightChange(activeLight + 1,  OFF_VAR);
         }
         handleLightChange(activeLight,   FADE_VAR);
         activeLight--;
@@ -680,10 +734,13 @@ void showConfirm() {
 }
 void showConnectionLost() {
   Serial.println("Show Connection ");
-  for (int i = 0; i < 255; i += 5) {
-    turnLightStripRGB(2, i, i, 0);
-    delay(10);
-  }
+  turnLightStripRGB(2, 255, 255, 0);
+  delay(200);
+  turnLightStripRGB(2, 0, 0, 0);
+  delay(200);
+  turnLightStripRGB(2, 255, 255, 0);
+  delay(200);
+  turnLightStripRGB(2, 0, 0, 0);
 }
 
 void showError() {
@@ -699,10 +756,14 @@ void showError() {
 
 void lightTest() {
   Serial.println("testing lights");
-  for (int strip = 0; strip < 5; strip++) {
-    for (int i = 0; i < 100; i += 10) {
-      turnLightStripRGB(strip, i, i, 0);
-      delay(10);
-    }
+  for (int strip = 0; strip < NUM_STRIPS; strip++) {
+
+    turnLightStripRGB(strip, 100, 100, 100);
+    delay(30);
+  }
+  for (int strip = 0; strip < NUM_STRIPS ; strip++) {
+
+    turnLightStripRGB(strip, 0, 0, 0);
+    delay(30);
   }
 }
